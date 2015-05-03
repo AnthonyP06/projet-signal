@@ -1,0 +1,224 @@
+\documentclass[11pt, two side, a4paper]{report}
+
+%% ========================= En-tête =========================
+% Packetages utilisés
+\usepackage[french]{babel}
+\usepackage{url}
+\usepackage{epsfig} % Gestion des images
+\usepackage{amsmath, amsthm} % Mode mathématique
+\usepackage{float} % Placement des figures
+\usepackage[T1]{fontenc}
+\usepackage{a4} % Definit le format de la page
+\usepackage[latin1]{inputenc} % Gérer les caractères spéciaux
+\usepackage{lmodern}
+\usepackage{listings} % Présenter du code source
+\usepackage{color}
+
+% Titre
+\title{\textbf{PROJET SIGNAL} \\ ~ \\ Accordeur électronique de guitare avec MATLAB}
+% Auteurs du rapport
+\author{Colin Mourard <\url{colin.mourard@ensica.isae.fr}> \\ Anthony Pagliaï <\url{anthony.pagliai@ensica.isae.fr}>}
+% Date du rapport
+\date{ISAE - Formation ENSICA - Année $2013$-$2014$}
+
+
+% Définition du style de mise en page du code
+\definecolor{code}{rgb}{0.97,0.97,0.97} % Définition nouvelle couleur
+\lstset{language=Matlab, basicstyle=\footnotesize, tabsize = 2, backgroundcolor=\color{code}}
+
+%% ========================= Corps du texte ========================
+\begin{document}
+\maketitle % Ecrire le titre sur la 1ère page
+
+\newpage
+\tableofcontents % Ecrire la table des matières sur la page suivante.
+
+\newpage
+\setcounter{part}{1} % On met le compteur des parties à "1".
+\part{Analyse de signaux réels}
+
+	% ============= Introduction ======================
+\chapter{Introduction}
+Au cours de toute la première partie, nous avons travaillé sur l'analyse de signaux synthétisés. L'avantage que présentaient ces signaux résidait dans le fait qu'ils étaient parfaits, c'est à dire que les signaux n'étaient composé que d'une seule harmonique. \\[11pt]
+Par ailleurs, nous avions tenté à la fin de la première partie de construire des signaux synthétisés qui se rapprochent des signaux réels. En effet, nous avons construit des signaux comportant plusieurs fréquences fondamentales (mais avec différentes amplitudes) ce qui nous avaient permis de soulever une problématique qui est essentielle dans cette deuxième partie, à savoir : Comment extraire la bonne fondamentale correspondant à la fréquence d'une corde accordée ? \\[11pt]
+Le but de cette partie est donc d'analyser des signaux réels et de proposer un traitement pour accorder les cordes. Dans un premier temps, nous étalonnerons notre accordeur sur des signaux pré-enregistrés. Dans un second temps, nous testerons notre accordeur sur des signaux que nous enregistrerons en direct via un microphone. Le microphone sera de suffisamment bonne qualité pour nous permettre de ne pas mettre en place de traitement spécifique pour le bruit.
+
+	% =========== Questions ===========================
+\chapter{Elaboration de l'accordeur électronique}
+Pour cette deuxième partie de projet, nous décidons de créer une toolbox. Ainsi, notre travail sera plus structuré et plus facile d'accès pour un intervenant extérieur. La toolbox comportera deux dossiers, \textbf{BIB} contenant les fonctions créées que nous implémentons (par exemple \emph{sav2lin.m}) et \textbf{DATA} contenant les signaux que nous utiliserons avec notre accordeur de guitare. De plus, notre projet contient deux M-Files : une fonction \emph{startup.m} qui nous permet d'initialiser notre environnement de travail et le script \emph{accordeur.m} qui constitue le traitement de notre signal à proprement parler.
+
+\section{Observation des signaux fournis}
+Nous souhaitons observer temporellement et fréquentiellement les signaux qui nous sont fournis. Dans un premier temps, il nous faut charger les-dits signaux. C'est pourquoi nous utilisons les fonctions $\mathtt{load}$ et $\mathtt{uigetfile}$. La fonction $\mathtt{load}$ nous permet de charger un fichier et la fonction $\mathtt{uigetfile}$ nous ouvre la boîte de dialogue dont on indique le chemin d'accès en paramètre, ce qui permet à l'utilisateur de choisir son signal à charger. Ainsi, nous n'écrivons pas en dur dans notre script quel signal nous chargeons. \\[11pt]
+Nous avons une grande quantité de signaux à notre disposition. Nous choisissons de ne représenter temporellement et fréquentiellement que le signal contenu dans le fichier \emph{LA1} correspondant à la note \emph{LA, $110$ Hz, Correctement Accordée}, à titre d'exemple.
+
+\newpage
+La \textsc{Figure} $2.1.$ présentée ci-dessous représente l'allure temporelle de la note LA1 :
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/LA1temp.jpg,width=10cm,height=6cm}}
+\caption{Allure temporelle du LA1}
+\end{figure}
+
+Pour la représentation fréquentielle du signal, nous avons calculé la transformée de Fourier du signal LA1 à l'aide de la fonction $\mathtt{fft}$ et nous l'avons centrée en zéro à l'aide de la fonction $\mathtt{fftshift}$. Pour améliorer la lecture, nous avons réduit la fenêtre d'affichage avec la fonction $\mathtt{xlim}$ en divisant par $10$ l'intervalle de fréquence initial du signal chargé. La \textsc{Figure} $2.2.$ représente l'allure fréquentielle du LA1 :
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/LA1freq.jpg,width=10cm,height=6cm}}
+\caption{Allure fréquentielle du LA1}
+\end{figure}
+
+En regardant de plus près l'allure de la \textsc{Figure} $2.2.$, nous pouvons remarquer que le pic maximum du signal correspond bien, \textbf{dans ce cas}, à la fréquence du fondamental. Cependant, notons bien que \textbf{ce n'est pas toujours le cas !} En effet, l'allure fréquentielle du signal MI1 représenté sur la \textsc{Figure} $2.3.$ (page suivante) constitue un parfait contre-exemple puisque la fréquence du fondamental pour la corde associée à MI1 est $82,407$ Hz alors que le maximum en sortie de FFT est compris (lecture graphique sur la \textsc{Figure} $2.3.$) entre $150$ et $200$ Hz. Par conséquent, la méthode consistant en une simple recherche par maximum en sortie de FFT n'est pas appropriée, car elle ne donnera pas toujours le résultat escompté.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/MI1freq.jpg,width=10cm,height=6cm}}
+\caption{Allure fréquentielle du MI1}
+\end{figure}
+
+La suite de cette partie consiste donc à trouver une alternative plus efficace.
+
+\section{Nouvelle stratégie de traitement}
+Nous sommes partis de la piste que nous avions entrevue en fin de première partie, à savoir une recherche de l'amplitude maximale du signal. Cependant, comme cette simple solution ne nous a pas apporté satisfaction, nous avons décidé de garder cette idée directrice, mais de l'adapter en conséquence pour obtenir une stratégie de traitement efficace et fonctionnelle.
+
+\subsection{Schéma bloc de la stratégie}
+La \textsc{Figure} $2.4.$ que vous trouverez à la page suivante constitue le principe de fonctionnement de notre accordeur électronique de guitare. Par ailleurs, vous trouverez ce schéma dans le dossier \emph{.zip} s'il ne vous paraît pas suffisamment lisible dans ce compte-rendu. Nous ne donnons pas plus de précisions à propos du schéma bloc pour l'instant puisque notre démarche, quoique déjà détaillée sur la \textsc{Figure} $2.4.$, sera expliquée précisemment dans la suite de la section \emph{$2.2.$ Nouvelle stratégie de traitement}.
+
+\begin{figure}[p]
+\centerline{\epsfig{file=Graphes/SchemaBlocsAccordeur.jpeg,width=20cm,height=4.6cm,angle=90}}
+\caption{Principe de fonctionnement de l'accordeur}
+\end{figure}
+
+\subsection{Développement des $6$ filtres passe-bande}
+Nous avons vu précédemment que les maximum (en amplitude) ne coïncident pas toujours avec le fondamental d'une corde, c'est pourquoi nous choisissons maintenant de ne garder qu'une partie du signal suffisamment resserrée autour du fondamental de chaque corde. Comme la guitare comporte $6$ cordes, nous avons décidé d'élaborer $6$ filtres passe-bande. Chacun de ces filtres est caractérisé par une donnée identique : la bande passante est centrée sur la fréquence du fondamental de la corde, et mesure un demi-ton. En effet, ce choix s'est rapidement imposé à nous étant donné que nous avons fait l'hypothèse (cf Partie $1$) que les cordes sont au maximum désacordées d'un quart de ton.\\[11pt]
+Pour le choix des filtres, nous avons opté pour des \textbf{filtres de Butterworth}. En effet, ces filtres sont utilisés lorsque toutes les fréquences de la bande passante doivent posséder le même gain ; ce qui est notre cas. Nous ne souhaitons pas déformer les amplitudes des signaux, sans quoi nous risquons de détecter un mauvais pic par la suite. Par soucis de clarté, nous avons écrit une fonction $\mathtt{filtrage}$ qui nous permet d'appliquer un filtre de Butterworth d'ordre $4$ à un signal (dans le domaine temporel) autour d'une fréquence qui sera successivement, pour notre accordeur, la fréquence du fondamental de chaque corde.\\[11pt]
+Nous allons maintenant expliciter chacun des filtres. Les filtres de Butterworth sont des filtres à \textbf{réponse impulsionnelle infinie (RII)}. Nous avons fait le choix d'utiliser des RII plutôt que des filtres à réponse impulsionnelle finie (RIF) car les RII sont plus sélectifs que les RIF du même ordre. Ainsi, la transition entre la bande passante et la bande rejetée du RII est plus rapide, ce qui nous permet (toujours à même ordre donné) de ne garder que la partie du signal comprise autour du fondamental de chaque corde en éliminant de manière suffisamment efficace le reste du signal.\\[11pt]
+Ensuite, le choix de l'ordre du filtre est une étape primordiale puisque ce dernier est déterminant dans l'efficacité du filtrage. En effet, la pente de coupure est proportionnelle à l'ordre du filtre (elle vaut $ordre~du~filtre * 20~dB/dec.$). A priori, plus l'ordre du filtre est important, plus notre filtre sera proche d'une porte, ce qui nous convient puisque nous ne voulons garder qu'une partie du signal lors de chaque filtrage. Cependant, nous devons veiller à ne pas choisir l'ordre du filtre trop important puisque plus on augmente l'ordre du filtre, plus on augmente nos chances d'obtenir un filtre qui sera instable, ce qui n'est pas bon. Finalement, nous avons choisi (par l'expérience) d'utiliser des filtres \textbf{d'ordre 4}.
+\subparagraph{N.B.} Comme l'échelle des octaves n'est pas une échelle linéaire, notons que l'écart entre la borne inférieure et le fondamental n'est pas le même que celui entre la borne supérieure et le fondamental. Pour obtenir la bande passante normalisée (i.e. telle que représentée sur les figures grâce à la fonction $\mathtt{fvtool}$) il suffit de multiplier cette bande-passante par $\frac{2}{f_s}$, où $f_s$ représente la fréquence d'échantillonnage du signal.
+
+
+\newpage
+\paragraph{Filtre du MI$1$} ~\\
+La \textsc{Figure} $2.5.$ représentée ci-dessus donne une allure du filtre associé à la corde MI$1$ dont la fréquence du fondamental est $82,407$ Hz. La bande passante de ce filtre est à $\pm$ $\frac{1}{4}$ de ton par rapport à la fréquence du fondamental. La bande passante est donc le segment de fréquences $\lbrack 80,061~;~84,822 \rbrack$.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/filtreMI1.jpg,width=14cm,height=6cm}}
+\caption{Diagramme de Bode (en gain en dB) du filtre du MI$1$ en fonction de la fréquence normalisée}
+\end{figure}
+
+Comme les filtres passe-bande que nous utilisons sont des RII, il nous incombe d'en vérifier la stabilité. Pour ce faire, nous vérifions que les pôles de la fonction de transfert du filtre a bien tous ses pôles compris dans le cercle unité. Ceux-ci sont représentés sur la \textsc{Figure} $2.6.$ ci-dessous. Pour des soucis de lisibilité, la figure a été zoomée autour des pôles, donc le cercle unité n'est pas entièrement visible. Mais chaque cas, si tous les pôles se trouvent dans la partie concave du cercle unité (ce qui est le cas !) c'est que notre filtre est stable.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/polesFiltreMI1.jpg,width=10cm,height=6cm}}
+\caption{Représentation des pôles de la fonction de transfert du filtre du MI$1$}
+\end{figure} 
+
+\paragraph{Filtre du LA$1$} ~\\
+De la même manière, la \textsc{Figure} $2.7.$ représentée ci-dessus donne une allure du filtre associé à la corde MI$1$ dont la fréquence du fondamental est $110$ Hz.La bande passante est le segment de fréquences $\lbrack 106,869~;~113,223 \rbrack$.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/filtreLA1.jpg,width=14cm,height=6cm}}
+\caption{Diagramme de Bode (en gain en dB) du filtre du LA$1$ en fonction de la fréquence normalisée}
+\end{figure}
+
+Nous vérifions que les pôles de la fonction de transfert du filtre a bien tous ses pôles compris dans le cercle unité. Ceux-ci sont représentés sur la \textsc{Figure} $2.8.$ ci-dessous. Tous les pôles se trouvent dans la partie concave du cercle unité, donc notre filtre est stable.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/polesFiltreLA1.jpg,width=10cm,height=6cm}}
+\caption{Représentation des pôles de la fonction de transfert du filtre du LA$1$}
+\end{figure} 
+
+\newpage
+\paragraph{Filtre du RE$2$} ~\\
+De la même manière, la \textsc{Figure} $2.9.$ représentée ci-dessus donne une allure du filtre associé à la corde RE$2$ dont la fréquence du fondamental est $146,83$ Hz.La bande passante est le segment de fréquences $\lbrack 142,65~;~151,13 \rbrack$.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/filtreRE2.jpg,width=14cm,height=6cm}}
+\caption{Diagramme de Bode (en gain en dB) du filtre du RE$2$ en fonction de la fréquence normalisée}
+\end{figure}
+
+Nous vérifions que les pôles de la fonction de transfert du filtre a bien tous ses pôles compris dans le cercle unité. Ceux-ci sont représentés sur la \textsc{Figure} $2.10.$ ci-dessous. Tous les pôles se trouvent dans la partie concave du cercle unité, donc notre filtre est stable.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/polesFiltreRE2.jpg,width=10cm,height=6cm}}
+\caption{Représentation des pôles de la fonction de transfert du filtre du RE$2$}
+\end{figure} 
+
+\newpage
+\paragraph{Filtre du SOL$2$} ~\\
+De la même manière, la \textsc{Figure} $2.11.$ représentée ci-dessus donne une allure du filtre associé à la corde SOL$2$ dont la fréquence du fondamental est $196$ Hz.La bande passante est le segment de fréquences $\lbrack 190,420~;~201,743 \rbrack$.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/filtreSOL2.jpg,width=14cm,height=6cm}}
+\caption{Diagramme de Bode (en gain en dB) du filtre du SOL$2$ en fonction de la fréquence normalisée}
+\end{figure}
+
+Nous vérifions que les pôles de la fonction de transfert du filtre a bien tous ses pôles compris dans le cercle unité. Ceux-ci sont représentés sur la \textsc{Figure} $2.12.$ ci-dessous. Tous les pôles se trouvent dans la partie concave du cercle unité, donc notre filtre est stable.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/polesFiltreSOL2.jpg,width=10cm,height=6cm}}
+\caption{Représentation des pôles de la fonction de transfert du filtre du SOL$2$}
+\end{figure} 
+
+\newpage
+\paragraph{Filtre du SI$2$} ~\\
+De la même manière, la \textsc{Figure} $2.13.$ représentée ci-dessus donne une allure du filtre associé à la corde SI$2$ dont la fréquence du fondamental est $246,94$ Hz.La bande passante est le segment de fréquences $\lbrack 239,91~;~254,18 \rbrack$.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/filtreSI2.jpg,width=14cm,height=6cm}}
+\caption{Diagramme de Bode (en gain en dB) du filtre du SI$2$ en fonction de la fréquence normalisée}
+\end{figure}
+
+Nous vérifions que les pôles de la fonction de transfert du filtre a bien tous ses pôles compris dans le cercle unité. Ceux-ci sont représentés sur la \textsc{Figure} $2.14.$ ci-dessous. Tous les pôles se trouvent dans la partie concave du cercle unité, donc notre filtre est stable.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/polesFiltreSI2.jpg,width=10cm,height=6cm}}
+\caption{Représentation des pôles de la fonction de transfert du filtre du SI$2$}
+\end{figure} 
+
+\newpage
+\paragraph{Filtre du MI$3$} ~\\
+De la même manière, la \textsc{Figure} $2.15.$ représentée ci-dessus donne une allure du filtre associé à la corde MI$3$ dont la fréquence du fondamental est $329,63$ Hz.La bande passante est le segment de fréquences $\lbrack 320,25~;~339,29 \rbrack$.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/filtreMI3.jpg,width=14cm,height=6cm}}
+\caption{Diagramme de Bode (en gain en dB) du filtre du MI$3$ en fonction de la fréquence normalisée}
+\end{figure}
+
+Nous vérifions que les pôles de la fonction de transfert du filtre a bien tous ses pôles compris dans le cercle unité. Ceux-ci sont représentés sur la \textsc{Figure} $2.16.$ ci-dessous. Tous les pôles se trouvent dans la partie concave du cercle unité, donc notre filtre est stable.
+
+\begin{figure}[H]
+\centerline{\epsfig{file=Graphes/polesFiltreMI3.jpg,width=10cm,height=6cm}}
+\caption{Représentation des pôles de la fonction de transfert du filtre du MI$3$}
+\end{figure} 
+
+\newpage
+\subsection{Détermination de la corde jouée}
+Une fois notre opération de filtrage terminée, nous obtenons $6$ signaux filtrés que nous décidons de traiter dans le domaine fréquentiel. Pour ce faire, nous appliquons une FFT à l'aide de la fonction $\mathtt{fft}$ comportant un nombre de points égal au nombre de points que comporte le signal temporel discrétisé. Nous décidons donc volontairement de ne pas effectuer de zéro-padding. En effet, un calcul simple de la \textbf{précision} (cf Partie $1$ pour la formule) nous montre qu'elle est pour notre accordeur \textbf{de $0,25$ Hz}. Certes cette précision n'est pas suffisante pour obtenir une forme de sinus cardinal en zoomant sur les pics de notre FFT, mais elle est amplement suffisante pour remplir le cahier des charges de l'accordeur puisqu'elle nous permet de bien avoir un écart entre deux points calculés plus petit que l'écart entre deux paliers de l'accordeur (par exemple entre $+10$ et $+20$). \\
+Nous utilisons ensuite la fonction $\mathtt{fftshift}$ pour centrer notre observation fréquentielle, et pour que notre étude soit correcte (nous recherchons un maximum en valeur absolue !) nous n'oublions pas d'appliquer la fonction $\mathtt{abs}$ qui prend la valeur absolue du signal.\\[11pt]
+Enfin, nous recherchons sur chaque signal filtré l'amplitude maximum (en valeur absolue) et nous stockons cette valeur ainsi que l'abscisse du maximum (c'est une fréquence !). Cette opération est réalisée grâce à la fonction $\mathtt{max}$ sur chaque signal filtré. Cela nous donne $6$ maxima. Nous ne gardons ensuite que le maximum des maxima, ce qui nous permet de savoir quelle corde est à accorder, ainsi que la fréquence associée à ce maximum.\\[11pt]
+A ce stade de notre stratégie de traitement, \textbf{nous connaissons donc quelle est la corde qu'il faut accorder, et à quelle fréquence est la corde à accorder}. Il nous reste maintenant à comparer cette fréquence à celle du fondamental de la même corde, ce qui nous permettra ensuite de décider de quelle action effectuer sur la corde. La corde en question s'affiche dans la \emph{Command Window}.
+
+\subsection{Détermination de l'action à effectuer sur la corde}
+Maintenant que nous connaissons quelle corde il faut accorder ainsi que la fréquence de la note jouée, nous comparons ces deux valeurs. Si la fréquence de la note jouée est supérieure à la fréquence du fondamental, c'est qu'il faut desserrer la corde (l'échelle des paliers $+10$, $+20$, ... est définie celle définie dans le cahier des charges). Dans le cas contraire, il faut resserrer la corde. Un message s'affiche dans la \emph{Command Window} pour informer l'utilisateur de l'action à effectuer.\\[11pt]
+Si en revanche la corde est désaccordée de moins d'$\frac{1}{20}$ de ton (valeur imposée par le cahier des charges) nous considérons que notre corde est accordée et un message s'affiche également dans la \emph{Command Window}.
+
+\section{Acquisition du signal}
+Pour l'acquisition du signal, nous avons choisi d'intégrer un menu contextuel avec deux choix. Ce menu est très rudimentaire et propose à l'utilisateur soit de choisir un signal déjà enregistré dans la toolbox \emph{DATA} soit d'enregistrer un signal avec un microphone. Avec cette deuxième option, l'utilisateur est informé à l'aide d'instructions qui s'affichent dans la \emph{Command Window} de quand il peut commencer à enregistrer son signal. De plus, pour que l'étude soit correcte, le temps d'enregistrement est tel qu'on a une FFT avec la même précision de $0,25$ Hz qu'avec les signaux pré-enregistrés.\\[11pt]
+Une fois le signal enregistré, le traitement du signal et les étapes qui ont été décrites précédemment sont appliquées scrupuleusement, et de la même manière. L'utilisateur est donc informé de l'action à effectuer, de la même manière qu'avec un son pré-enregistré.
+
+\chapter{Que pourrions-nous améliorer dans notre accordeur ?}
+Le travail sur notre accordeur électronique de guitare avec MatLab arrive maintenant à son terme, mais ce n'est pas pour autant que c'est un logiciel parfait et il est intéressant selon nous de mettre l'accent sur quelques points que nous aurions éventuellement pu améliorer avec un peu plus de temps.
+\begin{enumerate}
+\item \textbf{Le traitement d'un signal en temps réel} \\
+Pour le confort de l'utilisateur, il aurait pu être intéressant de développer une fonctionnalité permettant de jouer des sons sans avoir à relancer à chaque fois l'accordeur. En effet, au jour d'aujourd'hui, pour accorder notre guitare, nous lançons l'accordeur, nous jouons une note, et il nous affiche à l'écran quelle action effectuer. Et ceci, autant de fois que nécessaire.
+\item \textbf{La polyvalence de notre corde} \\
+Notre accordeur a été développé pour accorder une guitare, mais il serait peu adapté pour accorder un autre instrument. Pour intégrer cette nouvelle fonctionnalité (qui n'est pas exigée par le cahier des charges) il faudrait éventuellement paramétrer différemment notre code pour y intégrer un nombre variable de cordes ainsi que des valeurs variables pour le fondamental de chaque corde.
+\item \textbf{La précision de notre accordeur} \\
+Pour améliorer le rendu de nos observations graphiques (notamment fréquentielles) nous aurions pu améliorer la précision de la FFT en utilisant la méthode du zéro-padding. Je rappelle que nous ne l'avons volontairement pas fait étant donné que la précision obtenue sans zéro-padding nous permettait de remplir les exigences du cahier des charges.
+\item \textbf{L'interface graphique de notre accordeur} \\
+Très rudimentaire, elle est certes efficace, mais manque cruellement de soin esthétique. En effet, nous n'avons pas eu le temps de développer une interface plus aboutie, mais une interface graphique créée avec l'éditeur $\mathtt{GUIDE}$ aurait été de toute évidence plus agréable pour l'utilisateur. En effet, cet éditeur est non seulement plus ergonomique et esthétique, mais il permet également d'afficher des graphes en temps réel.
+\end{enumerate}
+
+\chapter{Conclusion}
+Cet algorithme présente l'avantage de déterminer la fréquence de la note jouée, permettant ainsi à l'utilisateur d'accorder sa guitare avec une précision suffisante, tant que les cordes ne sont pas désaccordées de plus d'un quart de ton. Cette hypothèse fondamentale est notamment utiliser lors du filtrage, pour ne garder que la partie intéressante du signal à chaque fois. Sans cette hypothèse, utiliser un filtre ne serait pas une solution technologique envisageable puisqu'alors une trop grande partie du signal ne serait pas coupée, nous confrontant ainsi aux problèmes rencontrés dans la Partie $1$ de ce projet.\\[11pt]
+Cependant, nous sommes bien évidemment conscients que d'autres solutions que celle que nous avons utilisée sont possibles, et tout autant efficace si ce n'est plus, c'est pourquoi nous gardons un oeil critique sur les propriétés de notre accordeur qui est, bien que fonctionnel et abouti, un outil perfectible.
+
+\end{document}
